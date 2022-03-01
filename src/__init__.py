@@ -1,6 +1,8 @@
 import os
 
 from flask import Flask
+import json
+from werkzeug.exceptions import HTTPException
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
@@ -21,6 +23,17 @@ def create_app(test_config=None):
 
     from . import store
     app.register_blueprint(store.bp)
+
+    @app.errorhandler(HTTPException)
+    def handle_exception(e):
+        response = e.get_response()
+        response.data = json.dumps({
+            "code": e.code,
+            "name": e.name,
+            "description": e.description,
+        })
+        response.content_type = "application/json"
+        return response
 
     @app.route('/heartbeat')
     def heartbeat():

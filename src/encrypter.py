@@ -4,6 +4,8 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from hashlib import sha256
 import os, random, struct, json, base64
 
+from .error import InvalidPassword
+
 class FileEncrypter:
     def __init__(self, password):
         kdf = PBKDF2HMAC(
@@ -40,5 +42,5 @@ class FileEncrypter:
                 metadata = json.loads(json_str)
             except Exception as e:
                 print(e)
-                return None
+                raise InvalidPassword()
             return metadata

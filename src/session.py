@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from flask import Blueprint, request
 
+from .error import InvalidSessionHash
 from .encrypter import FileEncrypter
 
 MAX_SESSION_TIME = 10 * 60 # 10 Minutes
@@ -16,7 +17,10 @@ sessions_lock = Lock()
 
 def get_session(session_hash):
     with sessions_lock:
-        return sessions.get(session_hash, None)
+        session = sessions.get(session_hash, None)
+        if not session:
+            raise InvalidSessionHash()
+        return session
 
 @bp.route('', methods=['POST'])
 def sessions_endpoint():
