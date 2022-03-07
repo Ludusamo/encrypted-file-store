@@ -1,6 +1,7 @@
 import json
 import time
-from threading import Thread, Lock
+import logging
+from threading import Lock, Timer
 from uuid import uuid4
 
 from flask import Blueprint, request
@@ -8,7 +9,8 @@ from flask import Blueprint, request
 from .error import InvalidSessionHash
 from .encrypter import FileEncrypter
 
-MAX_SESSION_TIME = 10 * 60 # 10 Minutes
+MAX_SESSION_TIME = 60 * 10 # 10 Minutes
+SESSION_CHECK_INTERVAL = 60
 
 bp = Blueprint('session', __name__, url_prefix='/api/session')
 
@@ -43,7 +45,6 @@ def session_endpoint(session_hash):
     if request.method == 'GET':
         session = get_session(session_hash)
         if session:
-            print(sessions)
             return {
                 'active': False,
                 'reason': 'Session hash {} not found'.format(session_hash)
@@ -57,3 +58,22 @@ def session_endpoint(session_hash):
                 'active': False,
                 'reason': 'Session timed out'.format(session_hash)
             }, 404
+
+def create_session_clear_timer():
+    session_clear_timer = Timer(SESSION_CHECK_INTERVAL, _clear_invalid_sessions)
+    session_clear_timer.name = 'ClearSessionThread'
+    session_clear_timer.start()
+
+def _clear_invalid_sessions():
+    global sessions
+    logging.info('clearing invalid sessions')
+    with sessions_lock:
+        to_delete = []
+        for k, session in sessions.items():
+            if time.time() - session['creation_time'] >= MAX_SESSION_TIME:
+                to_delete.append(k)
+        for k in to_delete:
+            del sessions[k]
+    logging.info('cleared {} sessions'.format(len(to_delete)))
+
+    create_session_clear_timer()

@@ -1,10 +1,16 @@
 import os
+import json
+import logging
+import sys
 
 from flask import Flask
-import json
 from werkzeug.exceptions import HTTPException
 
+
 def create_app(test_config=None):
+    logging.basicConfig(format='[%(asctime)s][%(levelname)s] - %(message)s',
+                        stream=sys.stdout,
+                        level=logging.DEBUG)
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(SECRET_KEY='dev')
 
@@ -20,6 +26,7 @@ def create_app(test_config=None):
 
     from . import session
     app.register_blueprint(session.bp)
+    session.create_session_clear_timer()
 
     from . import store
     app.register_blueprint(store.bp)

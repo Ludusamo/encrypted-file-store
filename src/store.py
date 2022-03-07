@@ -8,9 +8,9 @@ from flask import Blueprint, request, send_file
 
 from .session import get_session
 from .error import MissingSessionHash, NoJSONMetadata, FileStoreDNE, \
-                   FileStoreExists, FailedToWriteMetadata, InvalidFileID, NoFile
+                   FileStoreExists, FailedToWriteMetadata, InvalidFileID, NoFile, \
+                   InvalidTag
 
-MAX_SESSION_TIME = 10 * 60 # 10 Minutes
 BASE_METADATA = {'files': {}, 'tags': []}
 
 bp = Blueprint('store', __name__, url_prefix='/api/store')
@@ -76,16 +76,41 @@ def store_endpoint():
 @bp.route('/metadata/file', methods=['GET'])
 def store_file_metadata_endpoint():
     if request.method == 'GET':
-        session, metadata = setup_session_and_meta(request.args.get('session_hash', None))
+        _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
         return json.dumps(metadata['files']), 200
 
 @bp.route('/metadata/file/<file_id>', methods=['GET'])
 def get_file_metadata_endpoint(file_id):
     if request.method == 'GET':
-        session, metadata = setup_session_and_meta(request.args.get('session_hash', None))
+        _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
         if file_id not in metadata['files']:
             raise InvalidFileID(file_id)
         return metadata['files'][file_id], 200
+
+@bp.route('/metadata/tag', methods=['GET'])
+def store_tag_metadata_endpoint():
+    if request.method == 'GET':
+        _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
+        return json.dumps(metadata['tags']), 200
+
+@bp.route('/metadata/tag/<tag_name>', methods=['PUT'])
+def store_change_tag_metadata_endpoint(tag_name):
+    if request.method == 'PUT':
+        request_data = json.loads(request.data)
+        session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
+        try:
+            metadata['tags'].remove(tag_name)
+        except ValueError:
+            raise InvalidTag(tag_name)
+        metadata['tags'].append(request_data['new_tag'])
+        for file_id, f_meta in metadata['files'].items():
+            try:
+                f_meta['tags'].remove(tag_name)
+            except ValueError:
+                continue
+            f_meta['tags'].append(request_data['new_tag'])
+        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
+        return 'successfully updated tag {} to {}'.format(tag_name, request_data['new_tag']), 200
 
 @bp.route('/file', methods=['POST'])
 def store_file_endpoint():
