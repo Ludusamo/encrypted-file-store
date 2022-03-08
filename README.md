@@ -8,7 +8,7 @@
 
 ### Run with binded mount
 
-`docker run --mount source="$PWD/data",target=/data --publish 5000:5000 encrypted-file-store`
+`docker run --publish 5000:5000 -v "$(pwd)"/data:/data --name encrypted-file-store encrypted-file-store`
 
 ### Deploying to Registry Repo
 

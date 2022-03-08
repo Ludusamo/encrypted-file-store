@@ -12,7 +12,8 @@ def create_app(test_config=None):
                         stream=sys.stdout,
                         level=logging.DEBUG)
     app = Flask(__name__, instance_relative_config=True)
-    app.config.from_mapping(SECRET_KEY='dev')
+    app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 * 1024
+    logging.info('MAX_CONTENT_LENGTH: {}'.format(app.config['MAX_CONTENT_LENGTH']))
 
     if test_config is None:
         app.config.from_pyfile('config.py', silent=True)
