@@ -1,10 +1,16 @@
 # file-store
 
-## Requirements
+## Running Docker
 
-1. [x] Encrypt and store files
-2. [] Decrypt stored files
-3. [x] Tag files
-4. [x] Search based on tags
-5. [] Build UI to add files and view files
+### Build
 
+`docker build -t encrypted-file-store .`
+
+### Run with binded mount
+
+`docker run --mount source="$PWD/data",target=/data --publish 5000:5000 encrypted-file-store`
+
+### Deploying to Registry Repo
+
+`docker build . -t <registry_ip>:32000/efs:latest`
+`docker push <registry_ip>:32000/efs`
