@@ -17,25 +17,39 @@ class FileEncrypter:
         key = base64.urlsafe_b64encode(kdf.derive(password.encode('utf-8')))
         self.fernet = Fernet(key)
 
-    def encrypt(self, path, outpath=None, chunksize=64*1024):
-        if not outpath:
-            outpath = path + '/content'
-
-        with open(path, 'rb') as in_file:
-            encrypted = self.fernet.encrypt(in_file.read())
-            with open(outpath, 'wb') as out_file:
+    def encrypt(self, path, outpath, chunksize=64*1024):
+        with open(path, 'rb') as in_file, open(outpath, 'wb') as out_file:
+            while True:
+                chunk = in_file.read(chunksize)
+                if len(chunk) == 0:
+                    break
+                encrypted = self.fernet.encrypt(chunk)
+                out_file.write(struct.pack('<I', len(encrypted)))
                 out_file.write(encrypted)
+                if len(chunk) < chunksize:
+                    break
 
-    def decrypt(self, path, outpath, filetype='txt', chunksize=64*1024):
-        with open(path, 'rb') as in_file:
-            decrypted = self.fernet.decrypt(in_file.read())
-            with open('{}.{}'.format(outpath, filetype), 'wb') as out_file:
+    def decrypt(self, path, outpath, filetype):
+        with open(path, 'rb') as in_file, open('{}.{}'.format(outpath, filetype), 'wb') as out_file:
+            while True:
+                size_data = in_file.read(4)
+                if len(size_data) == 0:
+                    break
+                chunk = in_file.read(struct.unpack('<I', size_data)[0])
+                decrypted = self.fernet.decrypt(chunk)
                 out_file.write(decrypted)
 
-    def decrypt_json(self, path, chunksize=64*1024):
+    def decrypt_json(self, path):
         with open(path, 'rb') as in_file:
-            decrypted = self.fernet.decrypt(in_file.read())
-            json_str = decrypted.decode('utf-8')
+            chunks = []
+            while True:
+                size_data = in_file.read(4)
+                if len(size_data) == 0:
+                    break
+                chunk = in_file.read(struct.unpack('<I', size_data)[0])
+                decrypted = self.fernet.decrypt(chunk)
+                chunks.append(decrypted.decode('utf-8'))
+            json_str = ''.join(chunks)
 
             metadata = None
             try:

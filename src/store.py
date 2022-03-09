@@ -16,7 +16,7 @@ BASE_METADATA = {'files': {}, 'tags': []}
 bp = Blueprint('store', __name__, url_prefix='/api/store')
 
 def _get_filepath(name):
-    data_filepath = os.environ.get('DATA_FILEPATH', 'data')
+    data_filepath = os.path.abspath(os.environ.get('DATA_FILEPATH', 'data'))
     return '{}/{}'.format(data_filepath, name)
 
 def _get_metadata_path(session):
@@ -93,10 +93,10 @@ def store_tag_metadata_endpoint():
         _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
         return json.dumps(metadata['tags']), 200
 
-@bp.route('/metadata/tag/<tag_name>', methods=['PUT'])
+@bp.route('/metadata/tag/<tag_name>', methods=['PUT', 'DELETE'])
 def store_change_tag_metadata_endpoint(tag_name):
+    request_data = json.loads(request.data)
     if request.method == 'PUT':
-        request_data = json.loads(request.data)
         session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
         try:
             metadata['tags'].remove(tag_name)
@@ -111,6 +111,20 @@ def store_change_tag_metadata_endpoint(tag_name):
             f_meta['tags'].append(request_data['new_tag'])
         encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
         return 'successfully updated tag {} to {}'.format(tag_name, request_data['new_tag']), 200
+    if request.method == 'DELETE':
+        session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
+        try:
+            metadata['tags'].remove(tag_name)
+        except ValueError:
+            raise InvalidTag(tag_name)
+        for file_id, f_meta in metadata['files'].items():
+            try:
+                f_meta['tags'].remove(tag_name)
+            except ValueError:
+                continue
+        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
+        return 'successfully deleted tag {}'.format(tag_name), 200
+
 
 @bp.route('/file', methods=['POST'])
 def store_file_endpoint():
