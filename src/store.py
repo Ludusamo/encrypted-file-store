@@ -4,7 +4,7 @@ import os
 import tempfile
 from uuid import uuid4
 
-from flask import Blueprint, request, send_file
+from flask import Blueprint, request, send_file, jsonify
 
 from .session import get_session
 from .error import MissingSessionHash, NoJSONMetadata, FileStoreDNE, \
@@ -80,7 +80,7 @@ def store_endpoint():
 def store_file_metadata_endpoint():
     if request.method == 'GET':
         _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
-        return json.dumps(metadata['files']), 200
+        return jsonify(metadata['files']), 200
 
 @bp.route('/metadata/file/<file_id>', methods=['GET', 'PATCH'])
 def get_file_metadata_endpoint(file_id):
@@ -106,7 +106,7 @@ def get_file_metadata_endpoint(file_id):
 def store_tag_metadata_endpoint():
     if request.method == 'GET':
         _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
-        return json.dumps(metadata['tags']), 200
+        return jsonify(metadata['tags']), 200
 
 @bp.route('/metadata/tag/<tag_name>', methods=['PUT', 'DELETE'])
 def store_change_tag_metadata_endpoint(tag_name):
