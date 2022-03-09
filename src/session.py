@@ -9,8 +9,8 @@ from flask import Blueprint, request
 from .error import InvalidSessionHash
 from .encrypter import FileEncrypter
 
-MAX_SESSION_TIME = 60 * 10 # 10 Minutes
-SESSION_CHECK_INTERVAL = 60
+MAX_SESSION_TIME = 60 * 30 # 10 Minutes
+SESSION_CHECK_INTERVAL = 60 * 5 # 5 Minutes
 
 bp = Blueprint('session', __name__, url_prefix='/api/session')
 
