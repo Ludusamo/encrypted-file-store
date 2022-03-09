@@ -82,13 +82,25 @@ def store_file_metadata_endpoint():
         _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
         return json.dumps(metadata['files']), 200
 
-@bp.route('/metadata/file/<file_id>', methods=['GET'])
+@bp.route('/metadata/file/<file_id>', methods=['GET', 'PATCH'])
 def get_file_metadata_endpoint(file_id):
     if request.method == 'GET':
         _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
         if file_id not in metadata['files']:
             raise InvalidFileID(file_id)
         return metadata['files'][file_id], 200
+    elif request.method == 'PATCH':
+        request_data = json.loads(request.data)
+        session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
+        if file_id not in metadata['files']:
+            raise InvalidFileID(file_id)
+        metadata['tags'] = list(set(metadata['tags']) | set(request_data.get('tags', [])))
+        f_meta = metadata['files'][file_id]
+        for key in ['tags', 'name', 'filetype']:
+            f_meta[key] = request_data.get(key, f_meta[key])
+
+        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
+        return f_meta, 200
 
 @bp.route('/metadata/tag', methods=['GET'])
 def store_tag_metadata_endpoint():
