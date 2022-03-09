@@ -15,13 +15,15 @@ BASE_METADATA = {'files': {}, 'tags': []}
 
 bp = Blueprint('store', __name__, url_prefix='/api/store')
 
-def _get_filepath(name):
-    data_filepath = os.path.abspath(os.environ.get('DATA_FILEPATH', 'data'))
-    return '{}/{}'.format(data_filepath, name)
+def _get_data_filepath():
+    return os.path.abspath(os.environ.get('DATA_FILEPATH', 'data'))
+
+def _get_filepath(filestore, name):
+    data_filepath = _get_data_filepath()
+    return '{}/{}/{}'.format(data_filepath, filestore, name)
 
 def _get_metadata_path(session):
-    data_filepath = os.environ.get('DATA_FILEPATH', 'data')
-    return '{}/{}.metadata'.format(data_filepath, session['name'])
+    return _get_filepath(session['name'], 'metadata')
 
 def _create_file(file_id, name, tags, filetype):
     return {
@@ -61,6 +63,7 @@ def store_endpoint():
         if os.path.exists(filepath):
             raise FileStoreExists()
 
+        os.mkdir('{}/{}'.format(_get_data_filepath(), session['name']))
         unencrypted_filepath = '{}.unencrypted'.format(filepath)
         with open(unencrypted_filepath, 'w') as unencrypted_file:
             try:
@@ -98,17 +101,20 @@ def store_change_tag_metadata_endpoint(tag_name):
     request_data = json.loads(request.data)
     if request.method == 'PUT':
         session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
+        new_tag = request_data['new_tag']
         try:
             metadata['tags'].remove(tag_name)
         except ValueError:
             raise InvalidTag(tag_name)
-        metadata['tags'].append(request_data['new_tag'])
+        if new_tag not in metadata['tags']:
+            metadata['tags'].append(new_tag)
         for file_id, f_meta in metadata['files'].items():
             try:
                 f_meta['tags'].remove(tag_name)
             except ValueError:
                 continue
-            f_meta['tags'].append(request_data['new_tag'])
+            if new_tag not in f_meta['tags']:
+                f_meta['tags'].append(request_data['new_tag'])
         encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
         return 'successfully updated tag {} to {}'.format(tag_name, request_data['new_tag']), 200
     if request.method == 'DELETE':
@@ -142,7 +148,7 @@ def store_file_endpoint():
             new_id = uuid4()
         new_id = str(new_id)
 
-        filepath = _get_filepath(new_id)
+        filepath = _get_filepath(session['name'], new_id)
         uploaded_file = request.files['file']
         uploaded_file.save(filepath + '.unencrypted')
         session['file_encrypter'].encrypt(filepath + '.unencrypted', filepath)
@@ -168,7 +174,7 @@ def get_file_endpoint(file_id):
             raise InvalidFileID(file_id)
         file_metadata = metadata['files'][file_id]
 
-        filepath = _get_filepath(file_id)
+        filepath = _get_filepath(session['name'], file_id)
         disp_name = '{}.{}'.format(file_metadata['name'], file_metadata['filetype'])
         session['file_encrypter'].decrypt(filepath, filepath, file_metadata['filetype'])
 
