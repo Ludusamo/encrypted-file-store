@@ -37,7 +37,7 @@ def encrypt_metadata(path, metadata, file_encrypter):
     with open(path + '.unencrypted', 'w') as f:
         json.dump(metadata, f)
 
-    file_encrypter.encrypt(path + '.unencrypted', path)
+    file_encrypter.encrypt_file(path + '.unencrypted', path)
     os.remove(path + '.unencrypted')
 
 def setup_session_and_meta(session_hash):
@@ -71,7 +71,7 @@ def store_endpoint():
             except Exception as e:
                 print(e)
                 raise FailedToWriteMetadata()
-        session['file_encrypter'].encrypt(unencrypted_filepath, filepath)
+        session['file_encrypter'].encrypt_file(unencrypted_filepath, filepath)
         os.remove(unencrypted_filepath)
         return {'status': 'success'}, 200
 
@@ -163,7 +163,7 @@ def store_file_endpoint():
         filepath = _get_filepath(session['name'], new_id)
         uploaded_file = request.files['file']
         uploaded_file.save(filepath + '.unencrypted')
-        session['file_encrypter'].encrypt(filepath + '.unencrypted', filepath)
+        session['file_encrypter'].encrypt_file(filepath + '.unencrypted', filepath)
         os.remove(filepath + '.unencrypted')
 
         metadata['tags'] = list(set(metadata['tags']) | set(request_data['tags']))
@@ -188,7 +188,7 @@ def get_file_endpoint(file_id):
 
         filepath = _get_filepath(session['name'], file_id)
         disp_name = '{}.{}'.format(file_metadata['name'], file_metadata['filetype'])
-        session['file_encrypter'].decrypt(filepath, filepath, file_metadata['filetype'])
+        session['file_encrypter'].decrypt_file(filepath, filepath, file_metadata['filetype'])
 
         unencrypted_path = filepath + '.' + file_metadata['filetype']
         ret = send_file(unencrypted_path, download_name=disp_name)

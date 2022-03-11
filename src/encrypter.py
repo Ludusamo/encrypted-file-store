@@ -17,7 +17,7 @@ class FileEncrypter:
         key = base64.urlsafe_b64encode(kdf.derive(password.encode('utf-8')))
         self.fernet = Fernet(key)
 
-    def encrypt(self, path, outpath, chunksize=64*1024):
+    def encrypt_file(self, path, outpath, chunksize=64*1024):
         with open(path, 'rb') as in_file, open(outpath, 'wb') as out_file:
             while True:
                 chunk = in_file.read(chunksize)
@@ -29,7 +29,7 @@ class FileEncrypter:
                 if len(chunk) < chunksize:
                     break
 
-    def decrypt(self, path, outpath, filetype):
+    def decrypt_file(self, path, outpath, filetype):
         with open(path, 'rb') as in_file, open('{}.{}'.format(outpath, filetype), 'wb') as out_file:
             while True:
                 size_data = in_file.read(4)
