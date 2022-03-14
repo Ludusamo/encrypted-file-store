@@ -2,6 +2,8 @@ import json
 import time
 import os
 import tempfile
+import logging
+
 from uuid import uuid4
 
 from flask import Blueprint, request, send_file, jsonify
@@ -9,7 +11,7 @@ from flask import Blueprint, request, send_file, jsonify
 from .session import get_session
 from .error import MissingSessionHash, NoJSONMetadata, FileStoreDNE, \
                    FileStoreExists, FailedToWriteMetadata, InvalidFileID, NoFile, \
-                   InvalidTag
+                   InvalidTag, FileUploadError
 
 BASE_METADATA = {'files': {}, 'tags': []}
 
@@ -54,7 +56,7 @@ def setup_session_and_meta(session_hash):
 @bp.route('', methods=['POST'])
 def store_endpoint():
     if request.method == 'POST':
-        request_data = json.loads(request.data)
+        request_data = request.get_json()
         if 'session_hash' not in request_data:
             raise MissingSessionHash()
         session = get_session(request_data['session_hash'])
@@ -76,11 +78,31 @@ def store_endpoint():
         return {'status': 'success'}, 200
 
 
-@bp.route('/metadata/file', methods=['GET'])
+@bp.route('/metadata/file', methods=['GET', 'POST'])
 def store_file_metadata_endpoint():
     if request.method == 'GET':
         _, metadata = setup_session_and_meta(request.args.get('session_hash', None))
         return jsonify(metadata['files']), 200
+    elif request.method == 'POST':
+        request_data = request.get_json()
+        if 'session_hash' not in request_data:
+            raise MissingSessionHash()
+        session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
+
+        new_id = uuid4()
+        while new_id in metadata['files']:
+            new_id = uuid4()
+        new_id = str(new_id)
+
+        metadata['tags'] = list(set(metadata['tags']) | set(request_data['tags']))
+        metadata['files'][new_id] = _create_file(
+            new_id,
+            request_data['name'],
+            request_data['tags'],
+            request_data['filetype'])
+        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
+
+        return new_id
 
 @bp.route('/metadata/file/<file_id>', methods=['GET', 'PATCH'])
 def get_file_metadata_endpoint(file_id):
@@ -90,7 +112,7 @@ def get_file_metadata_endpoint(file_id):
             raise InvalidFileID(file_id)
         return metadata['files'][file_id], 200
     elif request.method == 'PATCH':
-        request_data = json.loads(request.data)
+        request_data = request.get_json()
         session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
         if file_id not in metadata['files']:
             raise InvalidFileID(file_id)
@@ -110,7 +132,7 @@ def store_tag_metadata_endpoint():
 
 @bp.route('/metadata/tag/<tag_name>', methods=['PUT', 'DELETE'])
 def store_change_tag_metadata_endpoint(tag_name):
-    request_data = json.loads(request.data)
+    request_data = request.get_json()
     if request.method == 'PUT':
         session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
         new_tag = request_data['new_tag']
@@ -143,7 +165,6 @@ def store_change_tag_metadata_endpoint(tag_name):
         encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
         return 'successfully deleted tag {}'.format(tag_name), 200
 
-
 @bp.route('/file', methods=['POST'])
 def store_file_endpoint():
     if request.method == 'POST':
@@ -152,28 +173,36 @@ def store_file_endpoint():
         request_data = json.loads(request.form['metadata'])
         session, metadata = setup_session_and_meta(request_data.get('session_hash', None))
 
+        chunk = int(request_data['chunk'])
+        chunk_offset = int(request_data['chunk_offset'])
+        total_chunks = int(request_data['total_chunks'])
+        file_size = int(request_data.get('file_size', -1))
+        file_id = request_data['file_id']
+
         if 'file' not in request.files:
             raise NoFile()
 
-        new_id = uuid4()
-        while new_id in metadata['files']:
-            new_id = uuid4()
-        new_id = str(new_id)
+        path = _get_filepath(session['name'], file_id)
+        part_path = path + '.part'
+        logging.info('Path: {}'.format(path))
+        logging.info('Partial Path: {}'.format(part_path))
+        with open(part_path, 'ab') as f:
+            f.seek(chunk_offset)
+            uploaded_file = request.files['file']
+            f.write(uploaded_file.read())
+        logging.info('File Size: {}, {}'.format(os.path.getsize(part_path), file_size))
+        if chunk + 1 == total_chunks:
+            if file_size != -1 and os.path.getsize(part_path) != file_size:
+                os.remove(part_path)
+                raise FileUploadError(file_id, 'file size mismatch')
+            else:
+                logging.info('Encrypting file')
+                session['file_encrypter'].encrypt_file(part_path, path)
+                os.remove(part_path)
 
-        filepath = _get_filepath(session['name'], new_id)
-        uploaded_file = request.files['file']
-        uploaded_file.save(filepath + '.unencrypted')
-        session['file_encrypter'].encrypt_file(filepath + '.unencrypted', filepath)
-        os.remove(filepath + '.unencrypted')
+        return {'status': 'success'}, 200
 
-        metadata['tags'] = list(set(metadata['tags']) | set(request_data['tags']))
-        metadata['files'][new_id] = _create_file(
-            new_id,
-            request_data['name'],
-            request_data['tags'],
-            request_data['filetype'])
-        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
-        return {'status': 'success', 'id': new_id}, 200
+
 
 @bp.route('/file/<file_id>', methods=['GET'])
 def get_file_endpoint(file_id):

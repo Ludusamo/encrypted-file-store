@@ -43,3 +43,9 @@ class InvalidTag(HTTPException):
 
     def __init__(self, tag):
         self.description = 'tag does not exist: {}'.format(tag)
+
+class FileUploadError(HTTPException):
+    code = 500
+
+    def __init__(self, file_id, reason):
+        self.description = 'failed to upload file {}: {}'.format(file_id, reason)
