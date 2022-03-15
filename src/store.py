@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from flask import Blueprint, request, send_file, jsonify
 
+from .util import *
 from .session import get_session, check_file_locked, get_encrypt_job, add_encrypt_job, \
                      add_decrypt_job, get_decrypt_job
 from .error import MissingSessionName, NoJSONMetadata, FileStoreDNE, \
@@ -17,16 +18,6 @@ from .error import MissingSessionName, NoJSONMetadata, FileStoreDNE, \
 BASE_METADATA = {'files': {}, 'tags': []}
 
 bp = Blueprint('store', __name__, url_prefix='/api/store')
-
-def _get_data_filepath():
-    return os.path.abspath(os.environ.get('DATA_FILEPATH', 'data'))
-
-def _get_filepath(filestore, name):
-    data_filepath = _get_data_filepath()
-    return '{}/{}/{}'.format(data_filepath, filestore, name)
-
-def _get_metadata_path(session):
-    return _get_filepath(session['name'], 'metadata')
 
 def _create_file(file_id, name, tags, filetype):
     return {
@@ -47,7 +38,7 @@ def setup_session_and_meta(session_name):
     if not session_name:
         raise MissingSessionName()
     session = get_session(session_name)
-    filepath = _get_metadata_path(session)
+    filepath = get_metadata_path(session)
     if not os.path.exists(filepath):
         raise FileStoreDNE()
     metadata = session['file_encrypter'].decrypt_json(filepath)
@@ -61,12 +52,13 @@ def store_endpoint():
         if 'session_name' not in request_data:
             raise MissingSessionName()
         session = get_session(request_data['session_name'])
-        filepath = _get_metadata_path(session)
+        filepath = get_metadata_path(session)
 
         if os.path.exists(filepath):
             raise FileStoreExists()
 
-        os.mkdir('{}/{}'.format(_get_data_filepath(), session['name']))
+        os.mkdir('{}/{}'.format(get_data_filepath(), session['name']))
+        os.mkdir('{}/{}/decrypted'.format(get_data_filepath(), session['name']))
         unencrypted_filepath = '{}.unencrypted'.format(filepath)
         with open(unencrypted_filepath, 'w') as unencrypted_file:
             try:
@@ -101,7 +93,7 @@ def store_file_metadata_endpoint():
             request_data['name'],
             request_data['tags'],
             request_data['filetype'])
-        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
+        encrypt_metadata(get_metadata_path(session), metadata, session['file_encrypter'])
 
         return new_id
 
@@ -122,7 +114,7 @@ def get_file_metadata_endpoint(file_id):
         for key in ['tags', 'name', 'filetype']:
             f_meta[key] = request_data.get(key, f_meta[key])
 
-        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
+        encrypt_metadata(get_metadata_path(session), metadata, session['file_encrypter'])
         return f_meta, 200
 
 @bp.route('/metadata/tag', methods=['GET'])
@@ -150,7 +142,7 @@ def store_change_tag_metadata_endpoint(tag_name):
                 continue
             if new_tag not in f_meta['tags']:
                 f_meta['tags'].append(request_data['new_tag'])
-        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
+        encrypt_metadata(get_metadata_path(session), metadata, session['file_encrypter'])
         return 'successfully updated tag {} to {}'.format(tag_name, request_data['new_tag']), 200
     if request.method == 'DELETE':
         session, metadata = setup_session_and_meta(request_data.get('session_name', None))
@@ -163,7 +155,7 @@ def store_change_tag_metadata_endpoint(tag_name):
                 f_meta['tags'].remove(tag_name)
             except ValueError:
                 continue
-        encrypt_metadata(_get_metadata_path(session), metadata, session['file_encrypter'])
+        encrypt_metadata(get_metadata_path(session), metadata, session['file_encrypter'])
         return 'successfully deleted tag {}'.format(tag_name), 200
 
 @bp.route('/file', methods=['POST'])
@@ -183,7 +175,7 @@ def store_file_endpoint():
         if 'file' not in request.files:
             raise NoFile()
 
-        path = _get_filepath(session['name'], file_id)
+        path = get_filepath(session['name'], file_id)
         part_path = path + '.part'
         logging.info('Path: {}'.format(path))
         logging.info('Partial Path: {}'.format(part_path))
@@ -215,8 +207,8 @@ def get_file_endpoint(file_id):
         check_file_locked(session, file_id)
         file_metadata = metadata['files'][file_id]
 
-        filepath = _get_filepath(session['name'], file_id)
-        outpath = '{}.{}'.format(filepath, file_metadata['filetype'])
+        filepath = get_filepath(session['name'], file_id)
+        outpath = '{}.{}'.format(get_decrypted_filepath(session['name'], file_id), file_metadata['filetype'])
         if outpath in session['decrypted']:
             return send_file(outpath, download_name='{}.{}'.format(file_metadata['name'], file_metadata['filetype']))
         add_decrypt_job(session, file_id, filepath, outpath)

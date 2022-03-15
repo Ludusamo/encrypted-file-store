@@ -8,6 +8,10 @@ class SessionNotInitialized(HTTPException):
     code = 400
     description = 'session not initialized'
 
+class SessionExists(HTTPException):
+    code = 400
+    description = 'session exists'
+
 class NoJSONMetadata(HTTPException):
     code = 400
     description = "no json metadata attached"

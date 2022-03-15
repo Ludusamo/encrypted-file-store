@@ -8,11 +8,12 @@ from multiprocessing import Process, Event
 
 from flask import Blueprint, request
 
-from .error import SessionNotInitialized, FileIsBeingEncrypted, FileIsBeingDecrypted
+from .error import SessionNotInitialized, FileIsBeingEncrypted, FileIsBeingDecrypted, SessionExists
 from .encrypter import FileEncrypter
+from .util import *
 
 MAX_SESSION_TIME = 60 * 60 # 1 hour
-SESSION_CHECK_INTERVAL = 60 * 10 # 10 minutes
+CHECK_INTERVAL = 60 * 10 # 10 minutes
 
 bp = Blueprint('session', __name__, url_prefix='/api/session')
 
@@ -88,6 +89,12 @@ def sessions_endpoint():
 
         session_name = request_data['name']
 
+        session = None
+        try:
+            session = get_session(session_name)
+            raise SessionExists
+        except:
+            pass
         session = {
             'file_encrypter': FileEncrypter(request_data['password'])
             , 'name': session_name
@@ -121,9 +128,14 @@ def session_endpoint(session_name):
             }, 404
 
 def create_session_clear_timer():
-    session_clear_timer = Timer(SESSION_CHECK_INTERVAL, _clear_invalid_sessions)
+    session_clear_timer = Timer(CHECK_INTERVAL, _clear_invalid_sessions)
     session_clear_timer.name = 'ClearSessionThread'
     session_clear_timer.start()
+
+def _clear_decrypted(session):
+    dir_path = get_decrypted_folder(session['name'])
+    for f in os.listdir(dir_path):
+        os.remove(os.path.join(dir_path, f))
 
 def _clear_invalid_sessions():
     global sessions
@@ -134,6 +146,7 @@ def _clear_invalid_sessions():
             if time.time() - session['creation_time'] >= MAX_SESSION_TIME:
                 to_delete.append(k)
         for k in to_delete:
+            _clear_decrypted(sessions[k])
             del sessions[k]
     logging.info('cleared {} sessions'.format(len(to_delete)))
 
