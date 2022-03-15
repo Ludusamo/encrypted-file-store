@@ -1,12 +1,12 @@
 from werkzeug.exceptions import HTTPException
 
-class MissingSessionHash(HTTPException):
+class MissingSessionName(HTTPException):
     code = 400
-    description = "session_hash is missing from request input"
+    description = "session_name is missing from request input"
 
-class InvalidSessionHash(HTTPException):
+class SessionNotInitialized(HTTPException):
     code = 400
-    description = "session_hash is invalid"
+    description = 'session not initialized'
 
 class NoJSONMetadata(HTTPException):
     code = 400
@@ -31,6 +31,10 @@ class FailedToWriteMetadata(HTTPException):
 class InvalidPassword(HTTPException):
     code = 400
     description = 'invalid password on session'
+
+class FileIsBeingEncrypted(HTTPException):
+    code = 423
+    description = 'file is currently being encrypted'
 
 class InvalidFileID(HTTPException):
     code = 400
