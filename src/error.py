@@ -36,6 +36,10 @@ class FileIsBeingEncrypted(HTTPException):
     code = 423
     description = 'file is currently being encrypted'
 
+class FileIsBeingDecrypted(HTTPException):
+    code = 423
+    description = 'file is currently being decrypted'
+
 class InvalidFileID(HTTPException):
     code = 400
 

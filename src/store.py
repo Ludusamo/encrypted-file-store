@@ -8,10 +8,11 @@ from uuid import uuid4
 
 from flask import Blueprint, request, send_file, jsonify
 
-from .session import get_session, check_file_locked, get_encrypt_job, add_encrypt_job
+from .session import get_session, check_file_locked, get_encrypt_job, add_encrypt_job, \
+                     add_decrypt_job, get_decrypt_job
 from .error import MissingSessionName, NoJSONMetadata, FileStoreDNE, \
                    FileStoreExists, FailedToWriteMetadata, InvalidFileID, NoFile, \
-                   InvalidTag, FileUploadError
+                   InvalidTag, FileUploadError, FileIsBeingDecrypted
 
 BASE_METADATA = {'files': {}, 'tags': []}
 
@@ -202,8 +203,6 @@ def store_file_endpoint():
 
         return {'status': 'success'}, 200
 
-
-
 @bp.route('/file/<file_id>', methods=['GET'])
 def get_file_endpoint(file_id):
     if request.method == 'GET':
@@ -217,11 +216,8 @@ def get_file_endpoint(file_id):
         file_metadata = metadata['files'][file_id]
 
         filepath = _get_filepath(session['name'], file_id)
-        disp_name = '{}.{}'.format(file_metadata['name'], file_metadata['filetype'])
-        session['file_encrypter'].decrypt_file(filepath, filepath, file_metadata['filetype'])
-
-        unencrypted_path = filepath + '.' + file_metadata['filetype']
-        ret = send_file(unencrypted_path, download_name=disp_name)
-
-        os.remove(unencrypted_path)
-        return ret
+        outpath = '{}.{}'.format(filepath, file_metadata['filetype'])
+        if outpath in session['decrypted']:
+            return send_file(outpath, download_name='{}.{}'.format(file_metadata['name'], file_metadata['filetype']))
+        add_decrypt_job(session, file_id, filepath, outpath)
+        raise FileIsBeingDecrypted

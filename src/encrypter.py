@@ -29,9 +29,9 @@ class FileEncrypter:
                 out_file.write(encryptor.encrypt(chunk))
         logging.info('Encrypting for {} took {} seconds'.format(outpath, time.time() - start))
 
-    def decrypt_file(self, path, outpath, filetype):
+    def decrypt_file(self, path, outpath):
         start = time.time()
-        with open(path, 'rb') as in_file, open('{}.{}'.format(outpath, filetype), 'wb') as out_file:
+        with open(path, 'rb') as in_file, open(outpath, 'wb') as out_file:
             key = sha256(self.password).digest()
             origsize = struct.unpack('<Q', in_file.read(struct.calcsize('Q')))[0]
             iv = in_file.read(16)

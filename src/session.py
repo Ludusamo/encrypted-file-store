@@ -8,7 +8,7 @@ from multiprocessing import Process, Event
 
 from flask import Blueprint, request
 
-from .error import SessionNotInitialized, FileIsBeingEncrypted
+from .error import SessionNotInitialized, FileIsBeingEncrypted, FileIsBeingDecrypted
 from .encrypter import FileEncrypter
 
 MAX_SESSION_TIME = 60 * 60 # 1 hour
@@ -52,19 +52,34 @@ def add_encrypt_job(session, file_id, input_path, output_path):
 
 def get_decrypt_job(session, file_id):
     with session['lock']:
-        return session['encrypt_jobs'].get(file_id, None)
+        return session['decrypt_jobs'].get(file_id, None)
 
-def add_decrypt_job(session, file_id, done_event, encrypt_proc):
+def add_decrypt_job(session, file_id, input_path, output_path):
+    decrypt_job = get_decrypt_job(session, file_id)
     with session['lock']:
-        encrypt_job = get_decrypt_job(session, file_id)
-        if encrypt_job:
-            encrypt_job[1].join()
-        session['encrypt_jobs'][file_id] = (done_event, encrypt_proc)
+        if decrypt_job:
+            decrypt_job[1].join()
+        event = Event()
+        def decrypt_file_wrapper():
+            try:
+                session['file_encrypter'].decrypt_file(input_path, output_path)
+            except Exception as e:
+                logging.error('failed to decrypt')
+                logging.error(e)
+            finally:
+                event.set()
+        decrypt_proc = Process(target=decrypt_file_wrapper)
+        decrypt_proc.start()
+        session['decrypted'].add(output_path)
+        session['decrypt_jobs'][file_id] = (event, decrypt_proc)
 
 def check_file_locked(session, file_id):
     encrypt_job = get_encrypt_job(session, file_id)
     if encrypt_job and not encrypt_job[0].is_set():
         raise FileIsBeingEncrypted
+    decrypt_job = get_decrypt_job(session, file_id)
+    if decrypt_job and not decrypt_job[0].is_set():
+        raise FileIsBeingDecrypted
 
 @bp.route('', methods=['POST'])
 def sessions_endpoint():
@@ -78,6 +93,8 @@ def sessions_endpoint():
             , 'name': session_name
             , 'creation_time': time.time()
             , 'encrypt_jobs': {}
+            , 'decrypt_jobs': {}
+            , 'decrypted': set()
             , 'lock': Lock()
         }
         with sessions_lock:
