@@ -1,6 +1,4 @@
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from Crypto.Cipher import AES
 from hashlib import sha256
 import os, random, struct, json, base64
 import logging
@@ -10,48 +8,55 @@ from .error import InvalidPassword
 
 class FileEncrypter:
     def __init__(self, password):
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=b'',
-            iterations=390000,
-        )
-        key = base64.urlsafe_b64encode(kdf.derive(password.encode('utf-8')))
-        self.fernet = Fernet(key)
+        self.password = password.encode('utf-8')
 
     def encrypt_file(self, path, outpath, chunksize=64*1024*1024):
         start = time.time()
+        key = sha256(self.password).digest()
+        iv = os.urandom(16)
+        encryptor = AES.new(key, AES.MODE_CBC, iv)
+        filesize = os.path.getsize(path)
         with open(path, 'rb') as in_file, open(outpath, 'wb') as out_file:
+            out_file.write(struct.pack('<Q', filesize))
+            out_file.write(iv)
             while True:
                 chunk = in_file.read(chunksize)
                 if len(chunk) == 0:
                     break
-                encrypted = self.fernet.encrypt(chunk)
-                out_file.write(struct.pack('<I', len(encrypted)))
-                out_file.write(encrypted)
-                if len(chunk) < chunksize:
-                    break
+                elif len(chunk) % 16 != 0:
+                    chunk += b' ' * (16 - len(chunk) % 16)
+                out_file.write(encryptor.encrypt(chunk))
         logging.info('Encrypting took {} seconds'.format(time.time() - start))
 
-    def decrypt_generator(self, f):
-        while True:
-            size_data = f.read(4)
-            if len(size_data) == 0:
-                break
-            chunk = f.read(struct.unpack('<I', size_data)[0])
-            decrypted = self.fernet.decrypt(chunk)
-            yield decrypted
-
-    def decrypt_file(self, path, outpath, filetype):
+    def decrypt_file(self, path, outpath, filetype, chunksize=64*1024*1024):
         start = time.time()
         with open(path, 'rb') as in_file, open('{}.{}'.format(outpath, filetype), 'wb') as out_file:
-            for chunk in self.decrypt_generator(in_file):
-                out_file.write(chunk)
+            key = sha256(self.password).digest()
+            origsize = struct.unpack('<Q', in_file.read(struct.calcsize('Q')))[0]
+            iv = in_file.read(16)
+            decryptor = AES.new(key, AES.MODE_CBC, iv)
+            while True:
+                chunk = in_file.read(chunksize)
+                if len(chunk) == 0:
+                    break
+                out_file.write(decryptor.decrypt(chunk))
+            out_file.truncate(origsize)
         logging.info('Decrypting took {} seconds'.format(time.time() - start))
 
-    def decrypt_json(self, path):
+    def decrypt_json(self, path, chunksize=64*1024*1024):
         with open(path, 'rb') as in_file:
-            json_str = ''.join(chunk.decode('utf-8') for chunk in self.decrypt_generator(in_file))
+            key = sha256(self.password).digest()
+            origsize = struct.unpack('<Q', in_file.read(struct.calcsize('Q')))[0]
+            iv = in_file.read(16)
+            decryptor = AES.new(key, AES.MODE_CBC, iv)
+            chunks = []
+            while True:
+                chunk = in_file.read(chunksize)
+                if len(chunk) == 0:
+                    break
+                chunks.append(decryptor.decrypt(chunk).decode('utf-8'))
+            json_str = ''.join(chunks)
+            json_str.strip()
 
             metadata = None
             try:
