@@ -11,8 +11,8 @@ from flask import Blueprint, request
 from .error import SessionNotInitialized, FileIsBeingEncrypted
 from .encrypter import FileEncrypter
 
-MAX_SESSION_TIME = 60 * 30 # 10 Minutes
-SESSION_CHECK_INTERVAL = 60 * 5 # 5 Minutes
+MAX_SESSION_TIME = 60 * 60 # 1 hour
+SESSION_CHECK_INTERVAL = 60 * 10 # 10 minutes
 
 bp = Blueprint('session', __name__, url_prefix='/api/session')
 
