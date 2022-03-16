@@ -50,7 +50,6 @@ def add_encrypt_job(session, file_id, input_path, output_path):
         encrypt_proc.start()
         session['encrypt_jobs'][file_id] = (event, encrypt_proc)
 
-
 def get_decrypt_job(session, file_id):
     with session['lock']:
         return session['decrypt_jobs'].get(file_id, None)
@@ -108,14 +107,22 @@ def sessions_endpoint():
             sessions[str(session_name)] = session
         return {'status': 'success', 'session_name': session_name}, 201
 
+@bp.route('<session_name>/refresh', methods=['PUT'])
+def session_refresh_endpoint(session_name):
+    if request.method == 'PUT':
+        session = get_session(session_name)
+        session['creation_time'] = time.time()
+        logging.info('Session Refreshed, Time Left: {}'.format((MAX_SESSION_TIME / 60) - (time.time() - session['creation_time'])))
+        return { 'status': 'success' }, 200
+
 @bp.route('<session_name>/valid', methods=['GET'])
 def session_endpoint(session_name):
     if request.method == 'GET':
         session = get_session(session_name)
-        if session:
+        if not session:
             return {
                 'active': False,
-                'reason': 'Session hash {} not found'.format(session_name)
+                'reason': 'Session name {} not found'.format(session_name)
             }, 404
         if time.time() - session['creation_time'] < MAX_SESSION_TIME:
             return {
