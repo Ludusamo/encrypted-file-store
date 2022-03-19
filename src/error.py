@@ -9,7 +9,7 @@ class SessionNotInitialized(HTTPException):
     description = 'session not initialized'
 
 class SessionExists(HTTPException):
-    code = 400
+    code = 409
     description = 'session exists'
 
 class NoJSONMetadata(HTTPException):

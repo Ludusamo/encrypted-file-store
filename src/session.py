@@ -93,7 +93,7 @@ def sessions_endpoint():
             session = get_session(session_name)
         except:
             pass
-        if session:
+        if session and session['password'] != request_data['password']:
             raise SessionExists
         session = {
             'file_encrypter': FileEncrypter(request_data['password'])
@@ -103,6 +103,7 @@ def sessions_endpoint():
             , 'decrypt_jobs': {}
             , 'decrypted': set()
             , 'lock': Lock()
+            , 'password': request_data['password']
         }
         with sessions_lock:
             sessions[session_name] = session
