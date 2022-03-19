@@ -86,14 +86,15 @@ def sessions_endpoint():
     if request.method == 'POST':
         request_data = json.loads(request.data)
 
-        session_name = request_data['name']
+        session_name = str(request_data['name'])
 
         session = None
         try:
             session = get_session(session_name)
-            raise SessionExists
         except:
             pass
+        if session:
+            raise SessionExists
         session = {
             'file_encrypter': FileEncrypter(request_data['password'])
             , 'name': session_name
@@ -104,7 +105,7 @@ def sessions_endpoint():
             , 'lock': Lock()
         }
         with sessions_lock:
-            sessions[str(session_name)] = session
+            sessions[session_name] = session
         return {'status': 'success', 'session_name': session_name}, 201
 
 @bp.route('<session_name>/refresh', methods=['PUT'])

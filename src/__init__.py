@@ -4,14 +4,15 @@ import logging
 import sys
 
 from flask import Flask
+from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
-
 
 def create_app(test_config=None):
     logging.basicConfig(format='[%(asctime)s][%(levelname)s] - %(message)s',
                         stream=sys.stdout,
                         level=logging.DEBUG)
     app = Flask(__name__, instance_relative_config=True)
+    CORS(app)
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 * 1024
     logging.info('MAX_CONTENT_LENGTH: {}'.format(app.config['MAX_CONTENT_LENGTH']))
 

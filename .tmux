@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SESSION_NAME="efs"
+SESSION_NAME="encrypted-file-store"
 
 if tmux has-session -t $SESSION_NAME 2> /dev/null; then
 	tmux attach -t $SESSION_NAME
