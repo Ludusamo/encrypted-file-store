@@ -93,7 +93,7 @@ def sessions_endpoint():
             session = get_session(session_name)
         except:
             pass
-        if session and session['password'] != request_data['password']:
+        if session and session['password'] == request_data['password']:
             raise SessionExists
         session = {
             'file_encrypter': FileEncrypter(request_data['password'])
