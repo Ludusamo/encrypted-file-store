@@ -75,7 +75,19 @@ def store_endpoint():
 def store_file_metadata_endpoint():
     if request.method == 'GET':
         _, metadata = setup_session_and_meta(request.args.get('session_name', None))
-        return jsonify(metadata['files']), 200
+        # common case
+        if not request.args.get('tags', None) and not request.args.get('exclude_tags', None):
+            return jsonify(metadata['files']), 200
+
+        tags = set(request.args.get('tags', '').split(','))
+        exclude_tags = set(request.args.get('exclude_tags', '').split(','))
+
+        filtered_files = {}
+        for fid, f in metadata['files'].items():
+            tag_set = set(f['tags'])
+            if tags.issubset(tag_set) and exclude_tags.isdisjoint(tag_set):
+                filtered_files[fid] = f
+        return jsonify(filtered_files), 200
     elif request.method == 'POST':
         request_data = request.get_json()
         if 'session_name' not in request_data:
