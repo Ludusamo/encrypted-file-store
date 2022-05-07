@@ -11,7 +11,6 @@ fi
 tmux new-session -d -s $SESSION_NAME -n dev
 tmux send-keys -t $SESSION_NAME:dev "cd ${PWD}" C-m
 tmux send-keys -t $SESSION_NAME:dev "vim" C-m
-tmux send-keys -t $SESSION_NAME:dev ":find main.py" C-m
 
 # Open up a tab for git
 tmux new-window -n git -t $SESSION_NAME

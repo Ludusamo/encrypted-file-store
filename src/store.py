@@ -225,3 +225,19 @@ def get_file_endpoint(file_id):
             return send_file(outpath, download_name='{}.{}'.format(file_metadata['name'], file_metadata['filetype']))
         add_decrypt_job(session, file_id, filepath, outpath)
         raise FileIsBeingDecrypted
+
+@bp.route('/file/<file_id>/loaded', methods=['GET'])
+def get_file_loaded_endpoint(file_id):
+    if request.method == 'GET':
+        if 'session_name' not in request.args:
+            raise MissingSessionName()
+        session, metadata = setup_session_and_meta(request.args.get('session_name', None))
+
+        if file_id not in metadata['files']:
+            raise InvalidFileID(file_id)
+        check_file_locked(session, file_id)
+        file_metadata = metadata['files'][file_id]
+
+        filepath = get_filepath(session['name'], file_id)
+        outpath = '{}.{}'.format(get_decrypted_filepath(session['name'], file_id), file_metadata['filetype'])
+        return outpath in session['decrypted']
