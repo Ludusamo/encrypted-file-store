@@ -207,7 +207,7 @@ def store_file_endpoint():
 
         return {'status': 'success'}, 200
 
-@bp.route('/file/<file_id>', methods=['GET'])
+@bp.route('/file/<file_id>', methods=['GET', 'DELETE'])
 def get_file_endpoint(file_id):
     if request.method == 'GET':
         if 'session_name' not in request.args:
@@ -225,6 +225,23 @@ def get_file_endpoint(file_id):
             return send_file(outpath, download_name='{}.{}'.format(file_metadata['name'], file_metadata['filetype']))
         add_decrypt_job(session, file_id, filepath, outpath)
         raise FileIsBeingDecrypted
+    if request.method == 'DELETE':
+        request_data = request.get_json()
+        session, metadata = setup_session_and_meta(request_data.get('session_name', None))
+
+        if file_id not in metadata['files']:
+            raise InvalidFileID(file_id)
+        check_file_locked(session, file_id)
+        file_metadata = metadata['files'][file_id]
+
+        filepath = get_filepath(session['name'], file_id)
+        os.remove(filepath)
+
+        del metadata['files'][file_id]
+        encrypt_metadata(get_metadata_path(session), metadata, session['file_encrypter'])
+
+        return {'status': 'success'}, 200
+
 
 @bp.route('/file/<file_id>/loaded', methods=['GET'])
 def get_file_loaded_endpoint(file_id):

@@ -49,15 +49,18 @@ class InvalidFileID(HTTPException):
 
     def __init__(self, file_id):
         self.description = 'invalid file id: {}'.format(file_id)
+        super().__init__()
 
 class InvalidTag(HTTPException):
     code = 400
 
     def __init__(self, tag):
         self.description = 'tag does not exist: {}'.format(tag)
+        super().__init__()
 
 class FileUploadError(HTTPException):
     code = 500
 
     def __init__(self, file_id, reason):
         self.description = 'failed to upload file {}: {}'.format(file_id, reason)
+        super().__init__()
