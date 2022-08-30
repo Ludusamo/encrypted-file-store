@@ -12,6 +12,7 @@ def create_app(test_config=None):
                         stream=sys.stdout,
                         level=logging.DEBUG)
     app = Flask(__name__, instance_relative_config=True)
+    app.config['CORS_SUPPORTS_CREDENTIALS'] = True
     CORS(app)
     app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 * 1024
     logging.info('MAX_CONTENT_LENGTH: {}'.format(app.config['MAX_CONTENT_LENGTH']))

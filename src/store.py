@@ -235,7 +235,10 @@ def get_file_endpoint(file_id):
         file_metadata = metadata['files'][file_id]
 
         filepath = get_filepath(session['name'], file_id)
-        os.remove(filepath)
+        try:
+            os.remove(filepath)
+        except:
+            pass
 
         del metadata['files'][file_id]
         encrypt_metadata(get_metadata_path(session), metadata, session['file_encrypter'])
