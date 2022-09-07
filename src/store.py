@@ -79,8 +79,8 @@ def store_file_metadata_endpoint():
         if not request.args.get('tags', None) and not request.args.get('exclude_tags', None):
             return jsonify(metadata['files']), 200
 
-        tags = set(request.args.get('tags', '').split(','))
-        exclude_tags = set(request.args.get('exclude_tags', '').split(','))
+        tags = set() if 'tags' not in request.args else set(request.args.get('tags').split(','))
+        exclude_tags = set() if 'exclude_tags' not in request.args else set(request.args.get('exclude_tags').split(','))
 
         filtered_files = {}
         for fid, f in metadata['files'].items():
